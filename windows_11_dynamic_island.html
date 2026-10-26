@@ -1,0 +1,606 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Windows 11 Dynamic Island Widget</title>
+    <!-- Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- Font Awesome Icons -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <!-- Google Fonts Inter -->
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <script>
+        tailwind.config = {
+            theme: {
+                extend: {
+                    fontFamily: {
+                        sans: ['Inter', 'sans-serif'],
+                    },
+                    colors: {
+                        accent: {
+                            blue: '#0078d4',
+                            purple: '#8764b8',
+                            emerald: '#107c41',
+                            cyberpunk: '#ff007f',
+                        }
+                    }
+                }
+            }
+        }
+    </script>
+    <style>
+        /* Custom Acrylic / Mica Glassmorphism Styles */
+        .glass-panel {
+            background: rgba(20, 20, 25, 0.75);
+            backdrop-filter: blur(25px) saturate(180%);
+            -webkit-backdrop-filter: blur(25px) saturate(180%);
+            border: 1px solid rgba(255, 255, 255, 0.12);
+            box-shadow: 0 16px 32px 0 rgba(0, 0, 0, 0.45);
+        }
+
+        .island-container {
+            transition: all 0.4s cubic-bezier(0.175, 0.885, 0.32, 1.15);
+            transform-origin: top center;
+        }
+
+        /* Equalizer Animation */
+        .eq-bar {
+            animation: eqBounce 1.2s ease-in-out infinite alternate;
+        }
+        .eq-1 { animation-delay: 0.1s; }
+        .eq-2 { animation-delay: 0.3s; }
+        .eq-3 { animation-delay: 0.2s; }
+        .eq-4 { animation-delay: 0.4s; }
+
+        @keyframes eqBounce {
+            0% { height: 15%; }
+            50% { height: 100%; }
+            100% { height: 35%; }
+        }
+
+        .paused .eq-bar {
+            animation-play-state: paused;
+            height: 20% !important;
+        }
+
+        /* Custom Scrollbar for Settings */
+        ::-webkit-scrollbar {
+            width: 6px;
+        }
+        ::-webkit-scrollbar-track {
+            background: transparent;
+        }
+        ::-webkit-scrollbar-thumb {
+            background: rgba(255, 255, 255, 0.2);
+            border-radius: 3px;
+        }
+        ::-webkit-scrollbar-thumb:hover {
+            background: rgba(255, 255, 255, 0.4);
+        }
+
+        /* Desktop Wallpaper Simulation Canvas */
+        .desktop-bg {
+            background: linear-gradient(135deg, #0f172a 0%, #1e1b4b 50%, #0284c7 100%);
+            background-size: cover;
+            background-position: center;
+        }
+    </style>
+</head>
+<body class="bg-slate-950 text-slate-100 font-sans h-screen w-screen overflow-hidden select-none">
+
+    <!-- Simulated Windows 11 Desktop Workspace -->
+    <div id="desktop" class="relative w-full h-full desktop-bg flex flex-col justify-between p-4 overflow-hidden">
+        
+        <!-- Top Menu Bar / Header Simulation -->
+        <div class="w-full flex justify-between items-center z-10 px-4 text-xs font-medium text-slate-300 opacity-80">
+            <div class="flex items-center gap-4">
+                <span class="hover:text-white cursor-pointer transition"><i class="fa-brands fa-windows text-sky-400 mr-1"></i> Windows 11 Pro</span>
+                <span class="hidden md:inline hover:text-white cursor-pointer transition">Desktop 1</span>
+            </div>
+            <div class="flex items-center gap-4">
+                <button onclick="toggleSettingsModal()" class="hover:text-white bg-white/10 px-3 py-1.5 rounded-full backdrop-blur transition flex items-center gap-2 border border-white/10">
+                    <i class="fa-solid fa-sliders text-xs"></i> Customize Island
+                </button>
+            </div>
+        </div>
+
+        <!-- Dynamic Island Root Container -->
+        <div id="islandWrapper" class="absolute top-3 left-1/2 -translate-x-1/2 z-50 flex flex-col items-center">
+            
+            <!-- Dynamic Island Base Pill -->
+            <div id="island" class="island-container glass-panel text-white rounded-full flex items-center justify-between px-4 py-2 cursor-pointer shadow-2xl relative border border-white/15 overflow-hidden" onclick="handleIslandClick(event)">
+                
+                <!-- State 1: Collapsed / Minimal Mode -->
+                <div id="collapsedView" class="flex items-center justify-between w-full h-full gap-3 px-1">
+                    <!-- Left Mini Icon/Status -->
+                    <div id="collapsedLeft" class="flex items-center gap-2">
+                        <i id="collapsedIcon" class="fa-solid fa-music text-sky-400 text-sm"></i>
+                        <span id="collapsedText" class="text-xs font-medium max-w-[110px] truncate">Midnight City</span>
+                    </div>
+
+                    <!-- Right Mini Visualizer / Status -->
+                    <div id="collapsedRight" class="flex items-center gap-1.5 h-4">
+                        <div class="flex items-end gap-0.5 h-3.5" id="miniEq">
+                            <span class="eq-bar eq-1 w-0.5 bg-sky-400 rounded-full h-full"></span>
+                            <span class="eq-bar eq-2 w-0.5 bg-sky-400 rounded-full h-full"></span>
+                            <span class="eq-bar eq-3 w-0.5 bg-sky-400 rounded-full h-full"></span>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- State 2: Expanded Media Player -->
+                <div id="expandedMedia" class="hidden flex-col w-full h-full p-2 space-y-3">
+                    <div class="flex items-center justify-between">
+                        <div class="flex items-center gap-3">
+                            <div class="relative w-12 h-12 rounded-xl overflow-hidden shadow-md border border-white/10 flex-shrink-0">
+                                <img id="albumArt" src="https://images.unsplash.com/photo-1614613535308-eb5fbd3d2c17?w=150&auto=format&fit=crop&q=80" alt="Album Art" class="w-full h-full object-cover">
+                            </div>
+                            <div class="flex flex-col min-w-0">
+                                <span id="trackTitle" class="text-sm font-semibold truncate text-white">Midnight City</span>
+                                <span id="trackArtist" class="text-xs text-slate-400 truncate">M83 — Synthwave</span>
+                            </div>
+                        </div>
+                        <!-- Mini Mode Switcher Tab -->
+                        <div class="flex bg-black/40 p-1 rounded-lg border border-white/10 gap-1 text-xs">
+                            <button onclick="switchTab('media', event)" class="px-2 py-1 rounded-md bg-white/20 text-white font-medium" id="tabMediaBtn"><i class="fa-solid fa-music"></i></button>
+                            <button onclick="switchTab('system', event)" class="px-2 py-1 rounded-md hover:bg-white/10 text-slate-400 transition" id="tabSysBtn"><i class="fa-solid fa-microchip"></i></button>
+                            <button onclick="switchTab('timer', event)" class="px-2 py-1 rounded-md hover:bg-white/10 text-slate-400 transition" id="tabTimerBtn"><i class="fa-solid fa-stopwatch"></i></button>
+                        </div>
+                    </div>
+
+                    <!-- Progress Bar -->
+                    <div class="space-y-1">
+                        <div class="w-full bg-slate-700/50 rounded-full h-1.5 cursor-pointer relative" onclick="seekTrack(event)">
+                            <div id="progressBar" class="bg-sky-400 h-1.5 rounded-full w-1/3 relative transition-all duration-200"></div>
+                        </div>
+                        <div class="flex justify-between text-[10px] text-slate-400 font-mono">
+                            <span id="currentTime">1:24</span>
+                            <span id="durationTime">4:03</span>
+                        </div>
+                    </div>
+
+                    <!-- Media Controls -->
+                    <div class="flex items-center justify-between pt-1">
+                        <button onclick="toggleMute(event)" class="text-slate-400 hover:text-white transition"><i id="muteBtn" class="fa-solid fa-volume-high text-xs"></i></button>
+                        <div class="flex items-center gap-5">
+                            <button onclick="prevTrack(event)" class="text-slate-300 hover:text-white text-sm transition"><i class="fa-solid fa-backward-step"></i></button>
+                            <button onclick="togglePlay(event)" class="w-9 h-9 rounded-full bg-sky-500 text-slate-950 flex items-center justify-center text-sm font-bold shadow-lg hover:scale-105 transition active:scale-95"><i id="playIcon" class="fa-solid fa-pause"></i></button>
+                            <button onclick="nextTrack(event)" class="text-slate-300 hover:text-white text-sm transition"><i class="fa-solid fa-forward-step"></i></button>
+                        </div>
+                        <button onclick="toggleLike(event)" class="text-slate-400 hover:text-rose-500 transition"><i id="likeBtn" class="fa-regular fa-heart text-xs"></i></button>
+                    </div>
+                </div>
+
+                <!-- State 3: System Performance Monitor -->
+                <div id="expandedSystem" class="hidden flex-col w-full h-full p-2 space-y-3">
+                    <div class="flex items-center justify-between border-b border-white/10 pb-2">
+                        <div class="flex items-center gap-2">
+                            <i class="fa-solid fa-microchip text-sky-400 text-sm"></i>
+                            <span class="text-xs font-semibold uppercase tracking-wider text-slate-300">System Resources</span>
+                        </div>
+                        <div class="flex bg-black/40 p-1 rounded-lg border border-white/10 gap-1 text-xs">
+                            <button onclick="switchTab('media', event)" class="px-2 py-1 rounded-md hover:bg-white/10 text-slate-400 transition"><i class="fa-solid fa-music"></i></button>
+                            <button onclick="switchTab('system', event)" class="px-2 py-1 rounded-md bg-white/20 text-white font-medium"><i class="fa-solid fa-microchip"></i></button>
+                            <button onclick="switchTab('timer', event)" class="px-2 py-1 rounded-md hover:bg-white/10 text-slate-400 transition"><i class="fa-solid fa-stopwatch"></i></button>
+                        </div>
+                    </div>
+
+                    <!-- CPU & RAM Load Meters -->
+                    <div class="grid grid-cols-2 gap-3 pt-1">
+                        <!-- CPU -->
+                        <div class="bg-black/30 p-2.5 rounded-xl border border-white/5 space-y-1.5">
+                            <div class="flex justify-between text-xs">
+                                <span class="text-slate-400">CPU Usage</span>
+                                <span id="cpuVal" class="font-mono text-sky-400 font-medium">28%</span>
+                            </div>
+                            <div class="w-full bg-slate-800 rounded-full h-2 overflow-hidden">
+                                <div id="cpuBar" class="bg-sky-400 h-2 rounded-full w-[28%] transition-all duration-500"></div>
+                            </div>
+                            <span class="text-[10px] text-slate-500 block">ThinkPad L390 • 2.1 GHz</span>
+                        </div>
+
+                        <!-- RAM -->
+                        <div class="bg-black/30 p-2.5 rounded-xl border border-white/5 space-y-1.5">
+                            <div class="flex justify-between text-xs">
+                                <span class="text-slate-400">RAM (8GB Dual)</span>
+                                <span id="ramVal" class="font-mono text-purple-400 font-medium">54%</span>
+                            </div>
+                            <div class="w-full bg-slate-800 rounded-full h-2 overflow-hidden">
+                                <div id="ramBar" class="bg-purple-400 h-2 rounded-full w-[54%] transition-all duration-500"></div>
+                            </div>
+                            <span class="text-[10px] text-slate-500 block">4.3 GB / 8.0 GB Used</span>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- State 4: Timer / Stopwatch -->
+                <div id="expandedTimer" class="hidden flex-col w-full h-full p-2 space-y-3">
+                    <div class="flex items-center justify-between border-b border-white/10 pb-2">
+                        <div class="flex items-center gap-2">
+                            <i class="fa-solid fa-stopwatch text-emerald-400 text-sm"></i>
+                            <span class="text-xs font-semibold uppercase tracking-wider text-slate-300">Focus Timer</span>
+                        </div>
+                        <div class="flex bg-black/40 p-1 rounded-lg border border-white/10 gap-1 text-xs">
+                            <button onclick="switchTab('media', event)" class="px-2 py-1 rounded-md hover:bg-white/10 text-slate-400 transition"><i class="fa-solid fa-music"></i></button>
+                            <button onclick="switchTab('system', event)" class="px-2 py-1 rounded-md hover:bg-white/10 text-slate-400 transition"><i class="fa-solid fa-microchip"></i></button>
+                            <button onclick="switchTab('timer', event)" class="px-2 py-1 rounded-md bg-white/20 text-white font-medium"><i class="fa-solid fa-stopwatch"></i></button>
+                        </div>
+                    </div>
+
+                    <div class="flex items-center justify-between px-3 pt-1">
+                        <div class="text-3xl font-mono font-bold tracking-wider text-emerald-400" id="timerDisplay">25:00</div>
+                        <div class="flex items-center gap-2">
+                            <button onclick="toggleTimer(event)" id="timerStartBtn" class="px-3 py-1.5 rounded-lg bg-emerald-500 text-slate-950 font-semibold text-xs hover:bg-emerald-400 transition">Start</button>
+                            <button onclick="resetTimer(event)" class="px-3 py-1.5 rounded-lg bg-white/10 text-slate-300 font-semibold text-xs hover:bg-white/20 transition">Reset</button>
+                        </div>
+                    </div>
+                </div>
+
+            </div>
+        </div>
+
+        <!-- Desktop Wallpaper Content / Demo Widgets -->
+        <div class="flex-1 flex flex-col justify-center items-center gap-6 z-0">
+            <div class="text-center space-y-2 max-w-lg px-4">
+                <div class="inline-block p-3 rounded-2xl bg-white/10 backdrop-blur border border-white/10 shadow-lg mb-2">
+                    <i class="fa-brands fa-windows text-4xl text-sky-400"></i>
+                </div>
+                <h1 class="text-3xl md:text-4xl font-bold tracking-tight text-white drop-shadow">Windows 11 Dynamic Island</h1>
+                <p class="text-sm text-slate-300 drop-shadow">Click the top floating pill widget to expand interactive states like Media Player, Resource Monitor, and Focus Timers.</p>
+            </div>
+
+            <!-- Interactive Quick Status Strip -->
+            <div class="glass-panel p-3 rounded-2xl flex items-center gap-6 text-slate-300 text-xs shadow-xl border border-white/10">
+                <div class="flex items-center gap-2">
+                    <i class="fa-solid fa-bolt text-amber-400"></i>
+                    <span>Battery: <strong class="text-white font-mono">74% (Charging)</strong></span>
+                </div>
+                <div class="w-px h-4 bg-white/20"></div>
+                <div class="flex items-center gap-2">
+                    <i class="fa-solid fa-wifi text-sky-400"></i>
+                    <span>Wi-Fi: <strong class="text-white">Home_5G</strong></span>
+                </div>
+                <div class="w-px h-4 bg-white/20"></div>
+                <div class="flex items-center gap-2">
+                    <i class="fa-solid fa-volume-high text-emerald-400"></i>
+                    <span>Audio: <strong class="text-white">Realtek HD</strong></span>
+                </div>
+            </div>
+        </div>
+
+        <!-- Windows 11 Taskbar Simulation -->
+        <div class="w-full flex justify-center items-center z-10 mb-1">
+            <div class="glass-panel px-4 py-2 rounded-2xl flex items-center gap-4 shadow-2xl border border-white/10">
+                <button class="hover:scale-110 transition text-sky-400 text-lg"><i class="fa-brands fa-windows"></i></button>
+                <button class="hover:scale-110 transition text-slate-300 hover:text-white text-lg"><i class="fa-solid fa-magnifying-glass"></i></button>
+                <button class="hover:scale-110 transition text-slate-300 hover:text-white text-lg"><i class="fa-solid fa-folder-closed"></i></button>
+                <button class="hover:scale-110 transition text-sky-400 text-lg"><i class="fa-solid fa-edge"></i></button>
+                <button class="hover:scale-110 transition text-emerald-400 text-lg"><i class="fa-solid fa-code"></i></button>
+            </div>
+        </div>
+
+    </div>
+
+    <!-- Customization Options Modal -->
+    <div id="settingsModal" class="fixed inset-0 bg-black/60 backdrop-blur-sm z-50 hidden flex items-center justify-center p-4">
+        <div class="glass-panel max-w-md w-full rounded-2xl p-6 border border-white/20 shadow-2xl space-y-5">
+            <div class="flex justify-between items-center border-b border-white/10 pb-3">
+                <h3 class="text-lg font-semibold text-white flex items-center gap-2">
+                    <i class="fa-solid fa-sliders text-sky-400"></i> Island Customization
+                </h3>
+                <button onclick="toggleSettingsModal()" class="text-slate-400 hover:text-white transition"><i class="fa-solid fa-xmark text-lg"></i></button>
+            </div>
+
+            <div class="space-y-4 text-sm">
+                <!-- Color Theme Accent -->
+                <div>
+                    <label class="block text-slate-300 mb-2 font-medium">Color Accent Theme</label>
+                    <div class="grid grid-cols-4 gap-2">
+                        <button onclick="setAccent('blue')" class="py-2 rounded-xl bg-sky-500/20 border border-sky-500/50 text-sky-400 font-medium hover:bg-sky-500/30 transition text-xs">Windows Blue</button>
+                        <button onclick="setAccent('purple')" class="py-2 rounded-xl bg-purple-500/20 border border-purple-500/50 text-purple-400 font-medium hover:bg-purple-500/30 transition text-xs">Purple</button>
+                        <button onclick="setAccent('emerald')" class="py-2 rounded-xl bg-emerald-500/20 border border-emerald-500/50 text-emerald-400 font-medium hover:bg-emerald-500/30 transition text-xs">Emerald</button>
+                        <button onclick="setAccent('cyberpunk')" class="py-2 rounded-xl bg-pink-500/20 border border-pink-500/50 text-pink-400 font-medium hover:bg-pink-500/30 transition text-xs">Cyberpunk</button>
+                    </div>
+                </div>
+
+                <!-- Size Adjuster -->
+                <div>
+                    <div class="flex justify-between text-slate-300 mb-1">
+                        <span>Compact Width</span>
+                        <span id="widthVal" class="font-mono text-xs">220px</span>
+                    </div>
+                    <input type="range" min="180" max="320" value="220" id="widthSlider" oninput="adjustWidth(this.value)" class="w-full accent-sky-400 bg-slate-800 rounded-lg cursor-pointer">
+                </div>
+
+                <!-- Position Offset -->
+                <div>
+                    <div class="flex justify-between text-slate-300 mb-1">
+                        <span>Top Margin Offset</span>
+                        <span id="offsetVal" class="font-mono text-xs">12px</span>
+                    </div>
+                    <input type="range" min="0" max="40" value="12" id="offsetSlider" oninput="adjustOffset(this.value)" class="w-full accent-sky-400 bg-slate-800 rounded-lg cursor-pointer">
+                </div>
+            </div>
+
+            <div class="pt-2">
+                <button onclick="toggleSettingsModal()" class="w-full py-2.5 rounded-xl bg-sky-500 text-slate-950 font-semibold text-sm hover:bg-sky-400 transition shadow-lg">Apply & Close</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Application Script Logic -->
+    <script>
+        // State Variables
+        let isExpanded = false;
+        let activeTab = 'media'; // 'media', 'system', 'timer'
+        let isPlaying = true;
+        let isMuted = false;
+        let isLiked = false;
+        let compactWidth = '220px';
+        let currentAccent = 'blue';
+
+        // Sample Playlist
+        const playlist = [
+            { title: "Midnight City", artist: "M83 — Synthwave", art: "https://images.unsplash.com/photo-1614613535308-eb5fbd3d2c17?w=150&auto=format&fit=crop&q=80", duration: 243 },
+            { title: "Starboy", artist: "The Weeknd — Pop", art: "https://images.unsplash.com/photo-1514525253161-7a46d19cd819?w=150&auto=format&fit=crop&q=80", duration: 230 },
+            { title: "Resonance", artist: "HOME — Chillwave", art: "https://images.unsplash.com/photo-1518709268805-4e9042af9f23?w=150&auto=format&fit=crop&q=80", duration: 212 }
+        ];
+        let currentTrackIdx = 0;
+        let trackProgress = 84; // seconds
+
+        // Timer State
+        let timerSeconds = 1500; // 25 mins
+        let timerInterval = null;
+        let isTimerRunning = false;
+
+        // Initialize Dimensions
+        document.addEventListener('DOMContentLoaded', () => {
+            applyCompactDimensions();
+            startProgressLoop();
+            startSystemSimLoop();
+        });
+
+        // Expand / Collapse Island Click Handler
+        function handleIslandClick(e) {
+            // Prevent toggling when clicking inside controls
+            if (e.target.closest('button') || e.target.closest('input')) return;
+
+            isExpanded = !isExpanded;
+            updateIslandView();
+        }
+
+        // Apply styles based on expanded or collapsed state
+        function updateIslandView() {
+            const island = document.getElementById('island');
+            const collapsedView = document.getElementById('collapsedView');
+            const mediaView = document.getElementById('expandedMedia');
+            const sysView = document.getElementById('expandedSystem');
+            const timerView = document.getElementById('expandedTimer');
+
+            if (isExpanded) {
+                // Expanded Dimensions
+                island.style.width = '380px';
+                island.style.height = '165px';
+                island.style.borderRadius = '28px';
+
+                collapsedView.classList.add('hidden');
+                
+                // Show current active tab view
+                mediaView.classList.toggle('hidden', activeTab !== 'media');
+                sysView.classList.toggle('hidden', activeTab !== 'system');
+                timerView.classList.toggle('hidden', activeTab !== 'timer');
+            } else {
+                // Collapsed Dimensions
+                applyCompactDimensions();
+                island.style.height = '40px';
+
+                collapsedView.classList.remove('hidden');
+                mediaView.classList.add('hidden');
+                sysView.classList.add('hidden');
+                timerView.classList.add('hidden');
+            }
+        }
+
+        function applyCompactDimensions() {
+            const island = document.getElementById('island');
+            if (!isExpanded) {
+                island.style.width = compactWidth;
+                island.style.borderRadius = '9999px';
+            }
+        }
+
+        // Switch Tabs inside Expanded Island
+        function switchTab(tab, e) {
+            if (e) e.stopPropagation();
+            activeTab = tab;
+            updateIslandView();
+            updateCollapsedText();
+        }
+
+        function updateCollapsedText() {
+            const text = document.getElementById('collapsedText');
+            const icon = document.getElementById('collapsedIcon');
+
+            if (activeTab === 'media') {
+                text.textContent = playlist[currentTrackIdx].title;
+                icon.className = 'fa-solid fa-music text-sky-400 text-sm';
+            } else if (activeTab === 'system') {
+                text.textContent = 'CPU: 28% | RAM: 54%';
+                icon.className = 'fa-solid fa-microchip text-purple-400 text-sm';
+            } else if (activeTab === 'timer') {
+                text.textContent = `Focus: ${formatTime(timerSeconds)}`;
+                icon.className = 'fa-solid fa-stopwatch text-emerald-400 text-sm';
+            }
+        }
+
+        // Media Player Controls
+        function togglePlay(e) {
+            if (e) e.stopPropagation();
+            isPlaying = !isPlaying;
+            document.getElementById('playIcon').className = isPlaying ? 'fa-solid fa-pause' : 'fa-solid fa-play ml-0.5';
+            document.getElementById('miniEq').classList.toggle('paused', !isPlaying);
+        }
+
+        function prevTrack(e) {
+            if (e) e.stopPropagation();
+            currentTrackIdx = (currentTrackIdx - 1 + playlist.length) % playlist.length;
+            loadTrack();
+        }
+
+        function nextTrack(e) {
+            if (e) e.stopPropagation();
+            currentTrackIdx = (currentTrackIdx + 1) % playlist.length;
+            loadTrack();
+        }
+
+        function loadTrack() {
+            const track = playlist[currentTrackIdx];
+            document.getElementById('trackTitle').textContent = track.title;
+            document.getElementById('trackArtist').textContent = track.artist;
+            document.getElementById('albumArt').src = track.art;
+            document.getElementById('durationTime').textContent = formatTime(track.duration);
+            trackProgress = 0;
+            updateProgressUI();
+            updateCollapsedText();
+        }
+
+        function toggleMute(e) {
+            if (e) e.stopPropagation();
+            isMuted = !isMuted;
+            document.getElementById('muteBtn').className = isMuted ? 'fa-solid fa-volume-xmark text-xs text-rose-400' : 'fa-solid fa-volume-high text-xs';
+        }
+
+        function toggleLike(e) {
+            if (e) e.stopPropagation();
+            isLiked = !isLiked;
+            document.getElementById('likeBtn').className = isLiked ? 'fa-solid fa-heart text-xs text-rose-500' : 'fa-regular fa-heart text-xs';
+        }
+
+        function seekTrack(e) {
+            e.stopPropagation();
+            const rect = e.currentTarget.getBoundingClientRect();
+            const clickX = e.clientX - rect.left;
+            const perc = clickX / rect.width;
+            trackProgress = Math.floor(perc * playlist[currentTrackIdx].duration);
+            updateProgressUI();
+        }
+
+        function updateProgressUI() {
+            const dur = playlist[currentTrackIdx].duration;
+            const perc = (trackProgress / dur) * 100;
+            document.getElementById('progressBar').style.width = `${perc}%`;
+            document.getElementById('currentTime').textContent = formatTime(trackProgress);
+        }
+
+        function startProgressLoop() {
+            setInterval(() => {
+                if (isPlaying) {
+                    trackProgress = (trackProgress + 1) % playlist[currentTrackIdx].duration;
+                    updateProgressUI();
+                }
+            }, 1000);
+        }
+
+        // Real-time System Load Simulation
+        function startSystemSimLoop() {
+            setInterval(() => {
+                const cpu = Math.floor(20 + Math.random() * 25);
+                const ram = Math.floor(50 + Math.random() * 10);
+
+                document.getElementById('cpuVal').textContent = `${cpu}%`;
+                document.getElementById('cpuBar').style.width = `${cpu}%`;
+
+                document.getElementById('ramVal').textContent = `${ram}%`;
+                document.getElementById('ramBar').style.width = `${ram}%`;
+
+                if (activeTab === 'system' && !isExpanded) {
+                    updateCollapsedText();
+                }
+            }, 3000);
+        }
+
+        // Focus Timer Logic
+        function toggleTimer(e) {
+            if (e) e.stopPropagation();
+            isTimerRunning = !isTimerRunning;
+            const btn = document.getElementById('timerStartBtn');
+            btn.textContent = isTimerRunning ? 'Pause' : 'Start';
+            btn.className = isTimerRunning 
+                ? 'px-3 py-1.5 rounded-lg bg-amber-500 text-slate-950 font-semibold text-xs hover:bg-amber-400 transition'
+                : 'px-3 py-1.5 rounded-lg bg-emerald-500 text-slate-950 font-semibold text-xs hover:bg-emerald-400 transition';
+
+            if (isTimerRunning) {
+                timerInterval = setInterval(() => {
+                    if (timerSeconds > 0) {
+                        timerSeconds--;
+                        document.getElementById('timerDisplay').textContent = formatTime(timerSeconds);
+                        if (!isExpanded && activeTab === 'timer') updateCollapsedText();
+                    } else {
+                        clearInterval(timerInterval);
+                        isTimerRunning = false;
+                        alert('Focus Timer Finished!');
+                    }
+                }, 1000);
+            } else {
+                clearInterval(timerInterval);
+            }
+        }
+
+        function resetTimer(e) {
+            if (e) e.stopPropagation();
+            clearInterval(timerInterval);
+            isTimerRunning = false;
+            timerSeconds = 1500;
+            document.getElementById('timerDisplay').textContent = '25:00';
+            document.getElementById('timerStartBtn').textContent = 'Start';
+            document.getElementById('timerStartBtn').className = 'px-3 py-1.5 rounded-lg bg-emerald-500 text-slate-950 font-semibold text-xs hover:bg-emerald-400 transition';
+            if (!isExpanded && activeTab === 'timer') updateCollapsedText();
+        }
+
+        // Helper Utilities
+        function formatTime(sec) {
+            const m = Math.floor(sec / 60);
+            const s = Math.floor(sec % 60);
+            return `${m}:${s < 10 ? '0' : ''}${s}`;
+        }
+
+        // Settings / Customization Handlers
+        function toggleSettingsModal() {
+            const modal = document.getElementById('settingsModal');
+            modal.classList.toggle('hidden');
+        }
+
+        function adjustWidth(val) {
+            compactWidth = `${val}px`;
+            document.getElementById('widthVal').textContent = compactWidth;
+            applyCompactDimensions();
+        }
+
+        function adjustOffset(val) {
+            document.getElementById('islandWrapper').style.top = `${val}px`;
+            document.getElementById('offsetVal').textContent = `${val}px`;
+        }
+
+        function setAccent(color) {
+            currentAccent = color;
+            const eqBars = document.querySelectorAll('.eq-bar');
+            const playBtn = document.getElementById('playIcon').parentElement;
+
+            if (color === 'blue') {
+                eqBars.forEach(b => b.className = 'eq-bar eq-1 w-0.5 bg-sky-400 rounded-full h-full');
+                playBtn.className = 'w-9 h-9 rounded-full bg-sky-500 text-slate-950 flex items-center justify-center text-sm font-bold shadow-lg hover:scale-105 transition active:scale-95';
+            } else if (color === 'purple') {
+                eqBars.forEach(b => b.className = 'eq-bar eq-1 w-0.5 bg-purple-400 rounded-full h-full');
+                playBtn.className = 'w-9 h-9 rounded-full bg-purple-500 text-slate-950 flex items-center justify-center text-sm font-bold shadow-lg hover:scale-105 transition active:scale-95';
+            } else if (color === 'emerald') {
+                eqBars.forEach(b => b.className = 'eq-bar eq-1 w-0.5 bg-emerald-400 rounded-full h-full');
+                playBtn.className = 'w-9 h-9 rounded-full bg-emerald-500 text-slate-950 flex items-center justify-center text-sm font-bold shadow-lg hover:scale-105 transition active:scale-95';
+            } else if (color === 'cyberpunk') {
+                eqBars.forEach(b => b.className = 'eq-bar eq-1 w-0.5 bg-pink-500 rounded-full h-full');
+                playBtn.className = 'w-9 h-9 rounded-full bg-pink-500 text-slate-950 flex items-center justify-center text-sm font-bold shadow-lg hover:scale-105 transition active:scale-95';
+            }
+        }
+    </script>
+</body>
+</html>
